@@ -1,0 +1,97 @@
+services:
+  api:
+    image: telemetry-api:dev
+    container_name: telemetry-api-dev
+    build:
+      context: .
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    env_file:
+      - .env
+    networks:
+      - telemetry_network
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: telemetry-db
+    restart: always
+    shm_size: 128mb
+    ports:
+      - "5432:5432"
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - type: tmpfs
+        target: /dev/shm
+        tmpfs:
+          size: 134217728
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - telemetry_network
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: telemetry-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+      PG_EXPORTER_EXTEND_QUERY_PATH: "/custom_queries.yml"
+    volumes:
+      - ./docker/postgres-exporter/custom_queries.yml:/custom_queries.yml
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - telemetry_network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: telemetry-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - postgres-exporter
+    networks:
+      - telemetry_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: telemetry-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./docker/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./docker/grafana/provisioning/datasources/datasources.dev.yml:/etc/grafana/provisioning/datasources/datasource.yml
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - postgres
+    networks:
+      - telemetry_network
+
+volumes:
+  postgres_data:
+
+networks:
+  telemetry_network:
+    driver: bridge

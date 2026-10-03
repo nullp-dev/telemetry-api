@@ -1,0 +1,78 @@
+{
+  "id": null,
+  "uid": "spring-boot-overview",
+  "title": "Spring Boot - Overview",
+  "description": "Quick service health check: request rate, errors, latency, CPU/memory and database connections.",
+  "tags": ["spring-boot", "overview"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      { "name": "application", "type": "query", "datasource": { "type": "prometheus", "uid": "prometheus" }, "query": "label_values(jvm_threads_live_threads, application)", "refresh": 2, "includeAll": false, "multi": false, "current": { "text": "telemetry", "value": "telemetry" } }
+    ]
+  },
+  "links": [
+    { "title": "Deep Dive", "url": "/d/spring-boot-deepdive", "type": "link", "icon": "dashboard" }
+  ],
+  "panels": [
+    { "id": 1, "type": "stat", "title": "Uptime", "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "process_uptime_seconds{application=\"$application\"}" }],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] } },
+    { "id": 2, "type": "stat", "title": "Req/s (total)", "gridPos": { "x": 4, "y": 0, "w": 5, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{application=\"$application\"}[$__rate_interval]))" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] } },
+    { "id": 3, "type": "stat", "title": "Error Rate (4xx+5xx)", "gridPos": { "x": 9, "y": 0, "w": 5, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{application=\"$application\",status=~\"4..|5..\"}[$__rate_interval])) or vector(0)" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "thresholds": { "steps": [ { "value": 0, "color": "green" }, { "value": 0.1, "color": "yellow" }, { "value": 1, "color": "red" } ] } }, "overrides": [] } },
+    { "id": 4, "type": "stat", "title": "Threads Live", "gridPos": { "x": 14, "y": 0, "w": 5, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "jvm_threads_live_threads{application=\"$application\"}" }],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] } },
+    { "id": 5, "type": "gauge", "title": "Heap Usage", "gridPos": { "x": 19, "y": 0, "w": 5, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "100 * sum(jvm_memory_used_bytes{application=\"$application\",area=\"heap\"}) / sum(jvm_memory_committed_bytes{application=\"$application\",area=\"heap\"})" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0, "thresholds": { "steps": [ { "value": 0, "color": "green" }, { "value": 75, "color": "yellow" }, { "value": 90, "color": "red" } ] } }, "overrides": [] } },
+
+    { "id": 10, "type": "timeseries", "title": "Request Rate (by status)", "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{application=\"$application\"}[$__rate_interval])) by (status)", "legendFormat": "{{status}}" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] } },
+    { "id": 11, "type": "timeseries", "title": "Latency P50 / P95 / P99 (overall)", "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{application=\"$application\"}[$__rate_interval])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=\"$application\"}[$__rate_interval])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application=\"$application\"}[$__rate_interval])) by (le))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] } },
+
+    { "id": 20, "type": "timeseries", "title": "CPU (process vs system)", "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "process_cpu_usage{application=\"$application\"} * 100", "legendFormat": "process" },
+        { "expr": "system_cpu_usage{application=\"$application\"} * 100", "legendFormat": "system" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] } },
+    { "id": 21, "type": "timeseries", "title": "Heap Memory", "gridPos": { "x": 8, "y": 12, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(jvm_memory_used_bytes{application=\"$application\",area=\"heap\"})", "legendFormat": "used" },
+        { "expr": "sum(jvm_memory_committed_bytes{application=\"$application\",area=\"heap\"})", "legendFormat": "committed" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] } },
+    { "id": 22, "type": "timeseries", "title": "HikariCP Connections", "gridPos": { "x": 16, "y": 12, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "hikaricp_connections_active{application=\"$application\"}", "legendFormat": "active" },
+        { "expr": "hikaricp_connections_idle{application=\"$application\"}", "legendFormat": "idle" },
+        { "expr": "hikaricp_connections_pending{application=\"$application\"}", "legendFormat": "pending" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] } }
+  ]
+}
