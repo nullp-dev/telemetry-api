@@ -80,7 +80,6 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./docker/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
-      - ./docker/grafana/provisioning/datasources/datasources.dev.yml:/etc/grafana/provisioning/datasources/datasource.yml
     ports:
       - "3000:3000"
     depends_on:
